@@ -1,0 +1,99 @@
+ACCOUNT LOCK POLICY
+Example Platform — Security Policy Document
+Last Updated: January 2025
+
+=======================================================
+SECTION 1: AUTOMATIC ACCOUNT LOCKING
+=======================================================
+
+Purpose:
+The automatic account locking mechanism protects users from unauthorized access attempts, brute-force attacks, and credential stuffing.
+
+Lock Triggers:
+
+1. FAILED LOGIN ATTEMPTS
+   - After 5 consecutive failed login attempts within a 10-minute window, the account is automatically locked.
+   - The 10-minute window resets after each successful login.
+
+2. SUSPICIOUS GEOGRAPHIC ACTIVITY
+   - Login attempts from a new country/region where the user has never logged in before trigger a temporary security hold pending verification.
+   - Verification email is sent to the registered address.
+
+3. COMPROMISED CREDENTIAL DETECTION
+   - If the user's credentials appear in a known data breach database (monitored via HaveIBeenPwned API), the account is preemptively locked.
+   - User is notified immediately via registered email.
+
+4. ADMINISTRATIVE LOCK
+   - Account administrators can manually lock any user account via Admin Panel → User Management → [User] → Lock Account.
+   - This is typically used for terminated employees or suspected internal threats.
+
+5. VIOLATION OF TERMS OF SERVICE
+   - Automated systems detect excessive API calls, spam behavior, or terms violations and lock the account pending review.
+
+=======================================================
+SECTION 2: LOCK TYPES AND DURATIONS
+=======================================================
+
+TEMPORARY LOCK (Automatic Unlock):
+- Duration: 15 minutes
+- Trigger: 5 failed login attempts
+- Resolution: Wait 15 minutes, then retry; OR click "Unlock My Account" in the email sent at time of lock
+
+SECURITY HOLD (Requires Verification):
+- Duration: Until user verifies via email
+- Trigger: Suspicious geographic login
+- Resolution: Click the verification link in the security alert email (valid for 24 hours)
+
+PERMANENT LOCK (Requires Support):
+- Duration: Until resolved by support team
+- Trigger: Compromise detection, ToS violation, admin lock
+- Resolution: Contact support at security@example.com
+
+=======================================================
+SECTION 3: UNLOCK PROCEDURES
+=======================================================
+
+Self-Service Unlock (Temporary Locks):
+1. Check your registered email inbox for a message with subject: "Your Account Has Been Temporarily Locked"
+2. Click the "Unlock My Account" button in the email (valid for 1 hour)
+3. You will be prompted to reset your password for security
+4. After password reset, your account is immediately unlocked
+
+Identity Verification Unlock (Security Hold):
+1. Open the security alert email with subject: "Unusual Login Detected"
+2. Click "Confirm This Was Me" if the login was yours, or "Secure My Account" if it was not
+3. Follow the prompts to verify your identity (phone verification or backup email)
+
+Support-Assisted Unlock (Permanent Lock):
+1. Contact security@example.com
+2. Provide: full name, account email, reason for unlock request
+3. Identity verification may be required (government ID or other proof)
+4. Expected response time: 1 business day for standard requests, 4 hours for urgent cases
+
+=======================================================
+SECTION 4: PREVENTION RECOMMENDATIONS
+=======================================================
+
+To minimize account lock risk:
+- Use a password manager to avoid typos and failed attempts
+- Enable biometric authentication where available
+- Whitelist trusted IP ranges for corporate accounts: Admin Panel → Security → IP Allowlist
+- Enable login notifications for instant awareness of access events
+- Use 2FA to prevent unauthorized access even if credentials are compromised
+
+=======================================================
+SECTION 5: ADMIN CONTROLS
+=======================================================
+
+Administrators can configure lock settings per organization:
+- Adjust failed attempt threshold (minimum 3, maximum 10)
+- Set lock duration (5 minutes to 24 hours)
+- Enable/disable geographic lock
+- Configure IP allowlist (bypasses lock for trusted IPs)
+- Access lock audit logs: Admin Panel → Audit Logs → Authentication Events
+
+=======================================================
+CONTACT
+=======================================================
+Security Team: security@example.com
+Emergency Security Line: 1-800-SECURE1 (24/7, Enterprise only)

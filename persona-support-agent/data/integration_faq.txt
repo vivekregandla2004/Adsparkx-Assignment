@@ -1,0 +1,120 @@
+INTEGRATION FAQ
+Example Platform — Developer Integration Guide
+Last Updated: January 2025
+
+=======================================================
+GENERAL INTEGRATION QUESTIONS
+=======================================================
+
+Q: What integration methods does the platform support?
+A: We support REST API, Webhooks, GraphQL (Enterprise), and native integrations with 50+ third-party tools including Salesforce, Slack, HubSpot, Zapier, and more. All integrations use OAuth 2.0 or API Bearer Token authentication.
+
+Q: Where can I find the API documentation?
+A: Full API documentation is available at https://developers.example.com. Includes reference docs, tutorials, SDKs for Python/Node.js/Java/Go, and a Postman collection.
+
+Q: Are there rate limits on API calls?
+A: Yes. Default rate limits:
+   - Starter plan: 60 requests/minute
+   - Professional plan: 300 requests/minute
+   - Enterprise plan: Custom (up to 10,000/minute)
+   Rate limit headers are included in every response: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+
+Q: Is there a sandbox/test environment?
+A: Yes. Use the sandbox API at https://api-sandbox.example.com. Sandbox tokens are generated at Settings → Developer → Sandbox Keys. The sandbox resets every 24 hours.
+
+=======================================================
+WEBHOOK QUESTIONS
+=======================================================
+
+Q: How do I configure webhooks?
+A: Go to Settings → Integrations → Webhooks → Add Webhook. Enter your endpoint URL, select events to subscribe to, and optionally add a signing secret for payload verification.
+
+Q: What events can trigger webhooks?
+A: Available webhook events:
+   - user.created, user.updated, user.deleted
+   - payment.success, payment.failed, payment.refunded
+   - subscription.created, subscription.cancelled, subscription.upgraded
+   - api.key.created, api.key.revoked
+   - cloud.service.started, cloud.service.stopped
+   - alert.triggered, incident.created, incident.resolved
+
+Q: How do I verify webhook signatures?
+A: All webhook payloads include an X-Signature-256 header containing HMAC-SHA256 signature. Verify using:
+   Python:
+     import hmac, hashlib
+     expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+     is_valid = hmac.compare_digest(f'sha256={expected}', received_signature)
+   Node.js:
+     const crypto = require('crypto');
+     const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+     const isValid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+
+Q: What happens if my webhook endpoint is down?
+A: We retry failed webhook deliveries on an exponential backoff schedule:
+   Attempt 1: Immediate
+   Attempt 2: 5 minutes later
+   Attempt 3: 30 minutes later
+   Attempt 4: 2 hours later
+   Attempt 5: 12 hours later
+   After 5 failures, the webhook is marked as failed. You can manually retry from Settings → Integrations → Webhooks → Delivery Log.
+
+Q: Is there a maximum payload size for webhooks?
+A: Maximum payload size is 1MB. Larger events are chunked or include a reference URL to fetch the full data.
+
+=======================================================
+DATABASE INTEGRATION QUESTIONS
+=======================================================
+
+Q: Can I connect directly to your database?
+A: Direct database access is not supported for security reasons. Use the REST API or GraphQL (Enterprise) to access data. For bulk data needs, use our Data Export feature: Settings → Data → Bulk Export.
+
+Q: Do you support real-time data sync?
+A: Yes, via Webhooks (event-driven) or our Change Data Capture (CDC) streaming feature (Enterprise). CDC streams all data changes in real time to Kafka, Kinesis, or Pub/Sub.
+
+Q: Is there an SDK for Python?
+A: Yes. Install via pip:
+   pip install example-platform-sdk
+   Documentation: https://developers.example.com/sdks/python
+
+=======================================================
+AUTHENTICATION INTEGRATION QUESTIONS
+=======================================================
+
+Q: Can I use SSO for integration accounts?
+A: Yes, SAML 2.0 and OIDC are supported for Enterprise plans. Machine accounts (service accounts) used for integrations should use API tokens rather than SSO.
+
+Q: How should I store API tokens securely in my integration?
+A: Never hardcode tokens in source code. Best practices:
+   - Use environment variables
+   - Store in a secrets manager (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault)
+   - Rotate tokens regularly (minimum every 90 days)
+   - Use separate tokens per integration/service
+
+Q: Can I restrict which IPs can use my API token?
+A: Yes. Token IP restriction is available for Professional and Enterprise plans. Configure at Settings → Developer → API Tokens → [Token] → IP Restrictions.
+
+=======================================================
+TROUBLESHOOTING INTEGRATION ISSUES
+=======================================================
+
+Q: My API calls are returning 500 Internal Server Error. What should I do?
+A: 1. Check the service status page at status.example.com
+   2. Review the error response body for a specific error code
+   3. Check if the issue is reproducible (if intermittent, may be a transient error)
+   4. If persistent, contact support with: request ID (from X-Request-ID header), timestamp, and request details
+
+Q: I'm getting CORS errors from my browser-based integration. How do I fix it?
+A: Our API supports CORS for browser requests from registered domains. Go to Settings → Developer → CORS → Add Allowed Origin and add your domain. Propagation takes up to 5 minutes.
+
+Q: Why is my integration slowing down over time?
+A: Common causes:
+   1. Approaching rate limits — check X-RateLimit-Remaining header
+   2. Large payloads — use filtering parameters to request only needed fields
+   3. Inefficient polling — switch to webhooks for event-driven updates
+   4. Not caching responses — implement cache with appropriate TTLs
+
+Q: How do I debug integration issues?
+A: 1. Enable debug logging in your integration code
+   2. Use the API sandbox for testing
+   3. Review the API request logs at Settings → Developer → Request Logs (last 1000 requests)
+   4. Use our Postman collection for isolated testing

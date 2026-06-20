@@ -1,0 +1,96 @@
+BILLING POLICY — EXAMPLE PLATFORM
+Last Updated: January 2025
+
+=======================================================
+SECTION 1: BILLING CYCLES AND PAYMENT
+=======================================================
+
+Billing Cycle:
+All subscription plans are billed on a monthly or annual basis depending on the plan selected at signup. Monthly plans are billed on the same date each month. Annual plans are billed once per year in advance.
+
+Payment Methods Accepted:
+- Major credit/debit cards (Visa, Mastercard, Amex, Discover)
+- PayPal
+- ACH Bank Transfer (Enterprise plans only)
+- Wire Transfer (Enterprise plans only, minimum $500)
+
+Payment Failure:
+If a payment fails, we will retry automatically on Day 3, Day 7, and Day 14. After three failed attempts, your account will be suspended. You will receive email notifications before each retry.
+
+Late Payment Fees:
+Accounts past due by more than 30 days may incur a late fee of 1.5% of the outstanding balance per month.
+
+=======================================================
+SECTION 2: PLAN UPGRADES AND DOWNGRADES
+=======================================================
+
+Upgrades:
+When you upgrade to a higher plan, the new rate takes effect immediately. You will be charged a prorated amount for the remainder of the current billing cycle.
+
+Example: If you upgrade mid-cycle when 15 days remain in a 30-day cycle, you pay 50% of the difference in plan cost immediately.
+
+Downgrades:
+Plan downgrades take effect at the start of the next billing cycle. No refund is issued for the current cycle when downgrading.
+
+=======================================================
+SECTION 3: INVOICES AND RECEIPTS
+=======================================================
+
+Invoices are generated automatically on each billing date and sent to the billing email address on file. You can also access all invoices from the Billing section of your account dashboard.
+
+For custom invoices or purchase orders (required for some enterprises), contact billing@example.com at least 5 business days before your billing date.
+
+Tax:
+Applicable taxes (VAT, GST, sales tax) are added based on your billing country and region. Tax-exempt customers must submit a valid exemption certificate before billing.
+
+=======================================================
+SECTION 4: BILLING DISPUTES
+=======================================================
+
+Dispute Process:
+If you believe a charge is incorrect, you must submit a billing dispute within 60 days of the charge date. Disputes submitted after 60 days may not be honored.
+
+How to Dispute:
+1. Log into your account dashboard
+2. Navigate to Billing → Invoice History
+3. Click on the invoice in question
+4. Select "Dispute This Charge"
+5. Provide a detailed explanation and any supporting documentation
+6. Our billing team will review within 5-7 business days
+
+For urgent billing disputes (charges over $500), contact billing@example.com directly with URGENT in the subject line.
+
+Resolution:
+If the dispute is valid, a credit will be applied to your next invoice or a refund issued within 10 business days.
+
+=======================================================
+SECTION 5: ACCOUNT CANCELLATION BILLING
+=======================================================
+
+Monthly Plans:
+You can cancel at any time. Access continues until the end of the current billing period. No prorated refund for the remaining days.
+
+Annual Plans:
+Canceling an annual plan mid-year does not entitle you to a refund for unused months, except as specified in our Refund Policy (see refund_policy.md).
+
+Data Retention After Cancellation:
+Your data is retained for 30 days after cancellation for recovery purposes, then permanently deleted.
+
+=======================================================
+SECTION 6: ENTERPRISE BILLING
+=======================================================
+
+Enterprise accounts may negotiate custom billing terms including:
+- Net 30 / Net 60 payment terms
+- Custom contract pricing
+- Volume discounts
+- Multi-seat bundled pricing
+
+Contact enterprise@example.com for enterprise billing inquiries.
+
+=======================================================
+CONTACT
+=======================================================
+Billing Support: billing@example.com
+Billing Hours: Monday–Friday, 9 AM – 6 PM EST
+Emergency Billing Line: 1-800-EXAMPLE (Enterprise only)
