@@ -18,9 +18,8 @@ CHUNK_SIZE: int = 500
 CHUNK_OVERLAP: int = 80
 TOP_K: int = 3
 
-# ─── Vector DB ─────────────────────────────────────────────────────────────────
-CHROMA_DB_DIR: str = "./chroma_db"
-COLLECTION_NAME: str = "support_kb"
+# ─── Vector Index ───────────────────────────────────────────────────────────────
+VECTOR_INDEX_DIR: str = "./vector_index"
 
 # ─── Data directory ────────────────────────────────────────────────────────────
 DATA_DIR: str = "./data"

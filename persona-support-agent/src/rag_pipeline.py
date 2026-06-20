@@ -1,23 +1,27 @@
 """
 RAG Pipeline — document ingestion, embedding, vector storage, and retrieval
-using LangChain chunking, Gemini embeddings, and ChromaDB.
+using LangChain chunking, Gemini embeddings, and a pure-numpy in-memory
+vector store (no compiled C/Rust extensions required).
 """
 import os
+import json
 import uuid
+import numpy as np
+from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from google import genai
-import chromadb
 
 from src.config import (
     GEMINI_API_KEY,
     EMBEDDING_MODEL,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
-    CHROMA_DB_DIR,
-    COLLECTION_NAME,
     TOP_K,
 )
 from src.utils import call_with_backoff
+
+# Where to persist the index between sessions
+_INDEX_DIR = Path("./vector_index")
 
 
 class RAGPipeline:
@@ -26,47 +30,108 @@ class RAGPipeline:
 
     Responsibilities:
     - Chunk documents with overlap
-    - Generate Gemini embeddings (text-embedding-004)
-    - Persist to ChromaDB
-    - Retrieve top-k relevant chunks with confidence scores
+    - Generate Gemini embeddings (gemini-embedding-001)
+    - Store vectors in-memory as numpy arrays (pure Python, no Rust/C++)
+    - Persist index to disk as .npy + .json files for reuse across sessions
+    - Retrieve top-k relevant chunks with cosine similarity scores
     """
 
-    def __init__(self, db_dir: str = CHROMA_DB_DIR):
+    def __init__(self, index_dir: str = str(_INDEX_DIR)):
         self.genai_client = genai.Client(api_key=GEMINI_API_KEY)
-        self.chroma_client = chromadb.PersistentClient(path=db_dir)
-        self.collection = self.chroma_client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self.index_dir = Path(index_dir)
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
             separators=["\n\n", "\n", ". ", " ", ""],
         )
 
+        # In-memory store
+        self._embeddings: np.ndarray | None = None  # shape: (N, D)
+        self._chunks: list[dict] = []               # [{text, source, page, section}]
+
+        # Try to load persisted index
+        self._load_index()
+
     # ─── Embedding ───────────────────────────────────────────────────────────
 
     def _get_embedding(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
-        """Call Gemini embedding API with backoff."""
+        """Call Gemini embedding API with exponential backoff."""
         from google.genai import types as genai_types
 
         def _call():
             response = self.genai_client.models.embed_content(
                 model=EMBEDDING_MODEL,
                 contents=text,
-                config=genai_types.EmbedContentConfig(
-                    task_type=task_type,
-                ),
+                config=genai_types.EmbedContentConfig(task_type=task_type),
             )
             return response.embeddings[0].values
 
         return call_with_backoff(_call)
 
+    # ─── Persistence ─────────────────────────────────────────────────────────
+
+    def _save_index(self):
+        """Persist embeddings and metadata to disk."""
+        self.index_dir.mkdir(parents=True, exist_ok=True)
+        if self._embeddings is not None and len(self._chunks) > 0:
+            np.save(self.index_dir / "embeddings.npy", self._embeddings)
+            with open(self.index_dir / "chunks.json", "w", encoding="utf-8") as f:
+                json.dump(self._chunks, f, ensure_ascii=False)
+
+    def _load_index(self):
+        """Load persisted embeddings and metadata from disk if available."""
+        emb_path = self.index_dir / "embeddings.npy"
+        meta_path = self.index_dir / "chunks.json"
+        if emb_path.exists() and meta_path.exists():
+            try:
+                self._embeddings = np.load(str(emb_path))
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    self._chunks = json.load(f)
+                print(f"[RAG] Loaded persisted index: {len(self._chunks)} chunks.")
+            except Exception as e:
+                print(f"[RAG] Failed to load persisted index: {e}")
+                self._embeddings = None
+                self._chunks = []
+
+    def _clear_index(self):
+        """Clear in-memory index and delete persisted files."""
+        self._embeddings = None
+        self._chunks = []
+        emb_path = self.index_dir / "embeddings.npy"
+        meta_path = self.index_dir / "chunks.json"
+        for p in (emb_path, meta_path):
+            if p.exists():
+                p.unlink()
+
+    # ─── Cosine Similarity ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _cosine_similarity(query_vec: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+        """
+        Compute cosine similarity between a query vector and a matrix of vectors.
+
+        Args:
+            query_vec: shape (D,)
+            matrix:    shape (N, D)
+
+        Returns:
+            similarities: shape (N,) in range [-1, 1], higher = more similar
+        """
+        query_norm = np.linalg.norm(query_vec)
+        matrix_norms = np.linalg.norm(matrix, axis=1)
+
+        # Avoid division by zero
+        query_norm = query_norm if query_norm > 0 else 1e-10
+        matrix_norms = np.where(matrix_norms > 0, matrix_norms, 1e-10)
+
+        dot_products = matrix @ query_vec
+        return dot_products / (matrix_norms * query_norm)
+
     # ─── Indexing ────────────────────────────────────────────────────────────
 
     def build_index(self, documents: list[dict]) -> int:
         """
-        Chunk, embed, and store all documents in ChromaDB.
+        Chunk, embed, and store all documents in memory (and persist to disk).
 
         Args:
             documents: List of {content: str, metadata: dict} from loaders.
@@ -74,14 +139,11 @@ class RAGPipeline:
         Returns:
             Total number of chunks stored.
         """
-        # Clear existing collection
-        self.chroma_client.delete_collection(COLLECTION_NAME)
-        self.collection = self.chroma_client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self._clear_index()
 
-        total_chunks = 0
+        all_embeddings = []
+        all_chunks = []
+
         for doc in documents:
             content = doc.get("content", "").strip()
             metadata = doc.get("metadata", {})
@@ -98,25 +160,25 @@ class RAGPipeline:
                     continue
 
                 embedding = self._get_embedding(chunk)
-                chunk_id = f"{source}_chunk_{idx}_{uuid.uuid4().hex[:8]}"
-
-                self.collection.add(
-                    ids=[chunk_id],
-                    embeddings=[embedding],
-                    metadatas=[
-                        {
-                            "source": source,
-                            "page": metadata.get("page", "1"),
-                            "section": metadata.get("section", ""),
-                            "chunk_index": idx,
-                        }
-                    ],
-                    documents=[chunk],
+                all_embeddings.append(embedding)
+                all_chunks.append(
+                    {
+                        "text": chunk,
+                        "source": source,
+                        "page": metadata.get("page", "1"),
+                        "section": metadata.get("section", ""),
+                        "chunk_index": idx,
+                    }
                 )
-                total_chunks += 1
 
-        print(f"[RAG] Index built: {total_chunks} chunks from {len(documents)} documents.")
-        return total_chunks
+        if all_embeddings:
+            self._embeddings = np.array(all_embeddings, dtype=np.float32)
+            self._chunks = all_chunks
+            self._save_index()
+
+        total = len(all_chunks)
+        print(f"[RAG] Index built: {total} chunks from {len(documents)} documents.")
+        return total
 
     # ─── Retrieval ───────────────────────────────────────────────────────────
 
@@ -130,50 +192,43 @@ class RAGPipeline:
 
         Returns:
             List of dicts: [{text, source, score, page, section}, ...]
-            Score is a cosine similarity value in [0, 1] (higher = more relevant).
+            Score is cosine similarity in [0, 1] (higher = more relevant).
         """
-        if self.collection.count() == 0:
+        if self._embeddings is None or len(self._chunks) == 0:
             return []
 
-        query_embedding = self._get_embedding(query)
+        query_embedding = self._get_embedding(query, task_type="RETRIEVAL_QUERY")
+        query_vec = np.array(query_embedding, dtype=np.float32)
 
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=min(top_k, self.collection.count()),
-            include=["documents", "metadatas", "distances"],
-        )
+        similarities = self._cosine_similarity(query_vec, self._embeddings)
 
-        retrieved: list[dict] = []
-        if not results or not results.get("documents"):
-            return retrieved
+        # Clamp to [0, 1] (cosine similarity can be slightly negative for unrelated docs)
+        similarities = np.clip(similarities, 0.0, 1.0)
 
-        docs = results["documents"][0]
-        metas = results["metadatas"][0]
-        distances = results["distances"][0]
+        k = min(top_k, len(self._chunks))
+        top_indices = np.argsort(similarities)[::-1][:k]
 
-        for i in range(len(docs)):
-            # ChromaDB cosine distance ∈ [0, 2]; convert to similarity ∈ [0, 1]
-            distance = float(distances[i]) if distances else 1.0
-            score = max(0.0, min(1.0, 1.0 - (distance / 2.0)))
-
+        retrieved = []
+        for i in top_indices:
+            chunk = self._chunks[i]
+            score = float(similarities[i])
             retrieved.append(
                 {
-                    "text": docs[i],
-                    "source": metas[i].get("source", "unknown"),
+                    "text": chunk["text"],
+                    "source": chunk["source"],
                     "score": round(score, 4),
-                    "page": metas[i].get("page", "1"),
-                    "section": metas[i].get("section", ""),
+                    "page": chunk.get("page", "1"),
+                    "section": chunk.get("section", ""),
                 }
             )
 
-        # Sort by score descending
         retrieved.sort(key=lambda x: x["score"], reverse=True)
         return retrieved
 
     def is_indexed(self) -> bool:
-        """Return True if the collection has any documents."""
-        return self.collection.count() > 0
+        """Return True if the index has any documents."""
+        return self._embeddings is not None and len(self._chunks) > 0
 
     def chunk_count(self) -> int:
-        """Return the total number of chunks in the collection."""
-        return self.collection.count()
+        """Return the total number of chunks in the index."""
+        return len(self._chunks)
